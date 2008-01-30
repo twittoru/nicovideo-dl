@@ -39,15 +39,16 @@ import string
 import sys
 import time
 import urllib2
+import cgi
 
 # Global constants
 const_video_url_str = 'http://www.nicovideo.jp/watch/%s'
-const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/((sm)[0-9]+))')
+const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/(\w+))')
 const_login_url_str = 'https://secure.nicovideo.jp/secure/login?site=niconico'
 const_login_post_str = 'current_form=login&next_url=%%2Fwatch%%2F%s&mail=%s&password=%s&login_submit=Log+In'
-const_url_url_param_re = re.compile(r"url[=]([h][t][t][p][^&]*)")
+const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
 const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s'
-const_video_title_re = re.compile(r'<title>(?:[^‐]*)‐([^<]*)</title>', re.M | re.I)
+const_video_title_re = re.compile(r'<title>(?:[^‐]*)‐(.*)</title>', re.M | re.I)
 const_1k = 1024
 const_initial_block_size = 10 * const_1k
 const_epsilon = 0.0001
@@ -278,10 +279,9 @@ else:
 			sys.exit('Error: empty username in .netrc file.')
 		account_username = netrc_username
 		account_password = netrc_password
-
-if account_username is None:
-	sys.stderr.write('You should provided the account data to watch nicovideos.\n')
-	sys.exit('Error: No account data.')
+	elif account_username is None:
+		account_username = raw_input("Type Niconico E-mail account: ")
+		account_password = getpass.getpass('Type Niconico password and press return: ')
 
 # Get output file name 
 if cmdl_opts.outfile is None:
@@ -306,9 +306,9 @@ if not (cmdl_opts.simulate or cmdl_opts.get_url):
 urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler()))
 urllib2.install_opener(urllib2.build_opener(urllib2.HTTPCookieProcessor()))
 
-# Log in and confirm age if needed
+# Log in
 if account_username is not None:
-	url = const_login_url_str # % video_url_id
+	url = const_login_url_str
 	post = const_login_post_str % (video_url_id, account_username, account_password)
 	download_step(False, 'Logging in', 'unable to log in', url, post)
 
@@ -322,15 +322,16 @@ if cmdl_opts.use_title or cmdl_opts.use_literal or cmdl_opts.get_title:
 # Extract needed video URL parameters
 video_url_info = const_video_url_info_str % video_url_id
 video_info_data = download_step(True, 'Retrieving info data', 'unable to retrieve video webpage', video_url_info)
-video_url_url_param = extract_step('Extracting URL "url" parameter', 'unable to extract URL "url" parameter', const_url_url_param_re, video_info_data)
-# video_url_real = const_video_url_real_str % (video_url_id, video_url_url_param)
-video_url_real = urllib2.unquote(video_url_url_param)
+cond_print('Extracting URL "url" parameter... ')
+video_url_url_param = cgi.parse_qs(video_info_data)["url"][0]
+cond_print('done.\n')
+video_url_real = (video_url_url_param)
 
 # Retrieve video data
 try:
 	cond_print('Requesting video file... ')
 	video_data = perform_request(video_url_real)
-	cond_print('done.')
+	cond_print('done.\n')
 	cond_print('Video data found at %s\n' % video_data.geturl())
 
 	if cmdl_opts.get_title:
