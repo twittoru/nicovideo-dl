@@ -61,6 +61,7 @@ def error_advice_exit(error_text):
 	sys.stderr.write('* Video no longer exists.\n')
 	sys.stderr.write('* You provided the account data, but it is not valid.\n')
 	sys.stderr.write('* The connection was cut suddenly for some reason.\n')
+	sys.stderr.write('* Your account is free and perhaps only usable at 02:00 to 19:00 (+0900).\n')
 	sys.stderr.write('* Niconico changed their system, and the program no longer works.\n')
 	sys.stderr.write('\nTry to confirm you are able to view the video using a web browser.\n')
 	sys.stderr.write('Use the same video URL and account information, if needed, with this program.\n')
@@ -323,7 +324,11 @@ if cmdl_opts.use_title or cmdl_opts.use_literal or cmdl_opts.get_title:
 video_url_info = const_video_url_info_str % video_url_id
 video_info_data = download_step(True, 'Retrieving info data', 'unable to retrieve video webpage', video_url_info)
 cond_print('Extracting URL "url" parameter... ')
-video_url_url_param = cgi.parse_qs(video_info_data)["url"][0]
+video_url_url_param = cgi.parse_qs(video_info_data)
+if (video_url_url_param.has_key("url")):
+	video_url_url_param=video_url_url_param["url"][0]
+else:
+	error_advice_exit('cannot extract url parameter')
 cond_print('done.\n')
 video_url_real = (video_url_url_param)
 
