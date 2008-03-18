@@ -42,16 +42,18 @@ import urllib2
 import cgi
 
 # Global constants
+const_1k = 1024
+const_initial_block_size = 10 * const_1k
+const_epsilon = 0.0001
+const_timeout = 120
+
 const_video_url_str = 'http://www.nicovideo.jp/watch/%s'
 const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/(\w+))')
 const_login_url_str = 'https://secure.nicovideo.jp/secure/login?site=niconico'
 const_login_post_str = 'current_form=login&next_url=%%2Fwatch%%2F%s&mail=%s&password=%s&login_submit=Log+In'
 const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
 const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s'
-const_video_title_re = re.compile(r'<title>(?:[^‐]*)‐(.*)</title>', re.M | re.I)
-const_1k = 1024
-const_initial_block_size = 10 * const_1k
-const_epsilon = 0.0001
+const_video_title_re = re.compile(r'<title>(?:[^‐]*)(?:[‐]?)(.*)</title>', re.M | re.I)
 
 # Print error message, followed by standard advice information, and then exit
 def error_advice_exit(error_text):
@@ -70,20 +72,23 @@ def error_advice_exit(error_text):
 	sys.exit('\n')
 
 # Wrapper to create custom requests with typical headers
-def request_create(url, data=None):
+def request_create(url, extra_headers, post_data=None):
 	retval = urllib2.Request(url)
-	if data is not None:
-		retval.add_data(data)
+	if post_data is not None:
+		retval.add_data(post_data)
 	# Try to mimic Firefox, at least a little bit
-	retval.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1) Gecko/20061010 Firefox/2.0')
+	retval.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11')
 	retval.add_header('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.7')
 	retval.add_header('Accept', 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5')
 	retval.add_header('Accept-Language', 'en-us,en;q=0.5')
+	if extra_headers is not None:
+		for header in extra_headers:
+			retval.add_header(header[0], header[1])
 	return retval
 
 # Perform a request, process headers and return response
-def perform_request(url, data=None):
-	request = request_create(url, data)
+def perform_request(url, headers=None, data=None):
+	request = request_create(url, headers, data)
 	response = urllib2.urlopen(request)
 	return response
 
@@ -109,7 +114,7 @@ def title_string_touch(title):
 def download_step(return_data_flag, step_title, step_error, url, post_data=None):
 	try:
 		cond_print('%s... ' % step_title)
-		data = perform_request(url, post_data).read()
+		data = perform_request(url, data=post_data).read()
 		cond_print('done.\n')
 		if return_data_flag:
 			return data
@@ -180,8 +185,7 @@ def calc_eta(start, now, total, current):
 		return '--:--'
 	rate = float(current) / dif
 	eta = long((total - current) / rate)
-	eta_mins = eta / 60
-	eta_secs = eta % 60
+	(eta_mins, eta_secs) = divmod(eta, 60)
 	if eta_mins > 99:
 		return '--:--'
 	return '%02d:%02d' % (eta_mins, eta_secs)
@@ -195,7 +199,7 @@ def calc_speed(start, now, bytes):
 
 # Create the command line options parser and parse command line
 cmdl_usage = 'usage: %prog [options] video_url'
-cmdl_version = '2007.10.09'
+cmdl_version = '2008.03.19'
 cmdl_parser = optparse.OptionParser(usage=cmdl_usage, version=cmdl_version, conflict_handler='resolve')
 cmdl_parser.add_option('-h', '--help', action='help', help='print this help text and exit')
 cmdl_parser.add_option('-v', '--version', action='version', help='print program version and exit')
@@ -211,6 +215,9 @@ cmdl_parser.add_option('-g', '--get-url', action='store_true', dest='get_url', h
 cmdl_parser.add_option('-2', '--title-too', action='store_true', dest='get_title', help='used with -g, print title too')
 (cmdl_opts, cmdl_args) = cmdl_parser.parse_args()
 
+# Set socket timeout
+socket.setdefaulttimeout(const_timeout)
+
 # Get video URL
 if len(cmdl_args) != 1:
 	cmdl_parser.print_help()
@@ -224,15 +231,14 @@ if video_url_mo is None:
 video_url_id = video_url_mo.group(2)
 video_url = const_video_url_str % video_url_id
 
+video_extension = '.flv'
+
 # Check conflicting options
 if cmdl_opts.outfile is not None and (cmdl_opts.simulate or cmdl_opts.get_url):
 	sys.stderr.write('Warning: video file name given but will not be used.\n')
 
 if cmdl_opts.outfile is not None and (cmdl_opts.use_title or cmdl_opts.use_literal):
 	sys.exit('Error: using the video title conflicts with using a given file name.')
-
-if cmdl_opts.use_netrc and cmdl_opts.password is not None:
-	sys.exit('Error: using netrc conflicts with giving command line password.')
 
 if cmdl_opts.use_title and cmdl_opts.use_literal:
 	sys.exit('Error: cannot use title and literal title at the same time.')
@@ -243,6 +249,9 @@ if cmdl_opts.quiet and cmdl_opts.get_url:
 # Incorrect option formatting
 if cmdl_opts.username is None and cmdl_opts.password is not None:
 	sys.exit('Error: password give but username is missing.')
+
+if cmdl_opts.use_netrc and (cmdl_opts.username is not None or cmdl_opts.password is not None):
+	sys.exit('Error: cannot use netrc and username/password at the same time.')
 
 if cmdl_opts.get_url is None and cmdl_opts.get_title is not None:
 	sys.exit('Error: getting title requires getting URL.')
@@ -286,22 +295,19 @@ else:
 
 # Get output file name 
 if cmdl_opts.outfile is None:
-	video_filename = '%s.flv' % video_url_id
+	video_filename = '%s%s' % (video_url_id, video_extension)
 else:
 	video_filename = cmdl_opts.outfile
 
-# Check name
-if not video_filename.lower().endswith('.flv'):
-	sys.stderr.write('Warning: video file name does not end in .flv\n')
 
 # Test writable file
-if not (cmdl_opts.simulate or cmdl_opts.get_url):
-	try:
-		disk_test = open(video_filename, 'wb')
-		disk_test.close()
-
-	except (OSError, IOError):
-		sys.exit('Error: unable to open %s for writing.' % video_filename)
+#if not (cmdl_opts.simulate or cmdl_opts.get_url):
+#	try:
+#		disk_test = open(video_filename, 'wb')
+#		disk_test.close()
+#
+#	except (OSError, IOError):
+#		sys.exit('Error: unable to open %s for writing.' % video_filename)
 
 # Install cookie and proxy handlers
 urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler()))
@@ -332,6 +338,18 @@ else:
 cond_print('done.\n')
 video_url_real = (video_url_url_param)
 
+# Rebuild filename if needed
+if cmdl_opts.use_title or cmdl_opts.use_literal:
+	if cmdl_opts.use_title:
+		prefix = title_string_norm(video_title)
+	else:
+		prefix = title_string_touch(video_title)
+	video_filename = '%s-%s%s' % (prefix, video_url_id, video_extension)
+
+# Check name
+if not video_filename.lower().endswith(video_extension):
+	sys.stderr.write('Warning: video file name does not end in %s\n' % video_extension)
+
 # Retrieve video data
 try:
 	cond_print('Requesting video file... ')
@@ -348,7 +366,10 @@ try:
 	if cmdl_opts.simulate or cmdl_opts.get_url:
 		sys.exit()
 
-	video_file = open(video_filename, 'wb')
+	try:
+		video_file = open(video_filename, 'wb')
+	except (IOError, OSError):
+		sys.exit('Error: unable to open "%s" for writing.' % video_filename)
 	try:
 		video_len = long(video_data.info()['Content-length'])
 		video_len_str = format_bytes(video_len)
@@ -394,23 +415,6 @@ except (urllib2.URLError, ValueError, httplib.HTTPException, TypeError, socket.e
 
 except KeyboardInterrupt:
 	sys.exit('\n')
-
-# Rename video file if needed
-if cmdl_opts.use_title or cmdl_opts.use_literal:
-	try:
-		if cmdl_opts.use_title:
-			prefix = title_string_norm(video_title)
-		else:
-			prefix = title_string_touch(video_title)
-		final_filename = '%s-%s.flv' % (prefix, video_url_id)
-		os.rename(video_filename, final_filename)
-		cond_print('Video file renamed to %s\n' % final_filename)
-	
-	except OSError:
-		sys.stderr.write('Warning: unable to rename file.\n')
-
-	except KeyboardInterrupt:
-		sys.exit('\n')
 
 # Finish
 sys.exit()
