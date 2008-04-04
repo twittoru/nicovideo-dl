@@ -54,6 +54,7 @@ const_login_post_str = 'current_form=login&next_url=%%2Fwatch%%2F%s&mail=%s&pass
 const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
 const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s'
 const_video_title_re = re.compile(r'<title>(?:[^‐]*)(?:[‐]?)(.*)</title>', re.M | re.I)
+const_video_type_re = re.compile(r'^http://.*\.nicovideo\.jp/smile\?(.*?)=.*')
 
 # Print error message, followed by standard advice information, and then exit
 def error_advice_exit(error_text):
@@ -293,22 +294,6 @@ else:
 		account_username = raw_input("Type Niconico E-mail account: ")
 		account_password = getpass.getpass('Type Niconico password and press return: ')
 
-# Get output file name 
-if cmdl_opts.outfile is None:
-	video_filename = '%s%s' % (video_url_id, video_extension)
-else:
-	video_filename = cmdl_opts.outfile
-
-
-# Test writable file
-#if not (cmdl_opts.simulate or cmdl_opts.get_url):
-#	try:
-#		disk_test = open(video_filename, 'wb')
-#		disk_test.close()
-#
-#	except (OSError, IOError):
-#		sys.exit('Error: unable to open %s for writing.' % video_filename)
-
 # Install cookie and proxy handlers
 urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler()))
 urllib2.install_opener(urllib2.build_opener(urllib2.HTTPCookieProcessor()))
@@ -337,6 +322,20 @@ else:
 	error_advice_exit('cannot extract url parameter')
 cond_print('done.\n')
 video_url_real = (video_url_url_param)
+
+# Extract video type and modify video_extension
+video_type_mo = const_video_type_re.match(video_url_real)
+if (video_type_mo):
+	if video_type_mo.group(1) == "s":
+		video_extension = ".swf"
+	elif video_type_mo.group(1) == "m":
+		video_extension = ".mp4"
+
+# Get output file name 
+if cmdl_opts.outfile is None:
+	video_filename = '%s%s' % (video_url_id, video_extension)
+else:
+	video_filename = cmdl_opts.outfile
 
 # Rebuild filename if needed
 if cmdl_opts.use_title or cmdl_opts.use_literal:
