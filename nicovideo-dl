@@ -53,7 +53,7 @@ const_login_url_str = 'https://secure.nicovideo.jp/secure/login?site=niconico'
 const_login_post_str = 'current_form=login&next_url=%%2Fwatch%%2F%s&mail=%s&password=%s&login_submit=Log+In'
 const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
 const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s'
-const_video_title_re = re.compile(r'<title>(?:[^‐]*)(?:[‐]?)(.*)</title>', re.M | re.I)
+const_video_title_re = re.compile(r'<title>(.*)</title>', re.M | re.I)
 const_video_type_re = re.compile(r'^http://.*\.nicovideo\.jp/smile\?(.*?)=.*')
 
 # Print error message, followed by standard advice information, and then exit
@@ -102,10 +102,14 @@ def cond_print(str):
 
 # Title string normalization
 def title_string_norm(title):
-	title = ''.join((x in string.ascii_letters or x in string.digits) and x or ' ' for x in title)
-	title = '_'.join(title.split())
-	title = title.lower()
-	return title
+	title_p = u'‐ニコニコ動画(SP1)'
+	title_s = unicode(title.decode('utf-8', 'ignore'))
+	if (title_s.endswith(title_p)):
+		title_s = title_s[:title_s.rfind(title_p)]
+	title_s = title_s.replace(os.sep, u'%')
+	title_s = u'_'.join(title_s.split())
+	title_s = title_s.encode('utf-8','ignore')
+	return title_s
 
 # Title string minimal transformation
 def title_string_touch(title):
