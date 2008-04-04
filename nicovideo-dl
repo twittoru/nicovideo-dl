@@ -204,7 +204,7 @@ def calc_speed(start, now, bytes):
 
 # Create the command line options parser and parse command line
 cmdl_usage = 'usage: %prog [options] video_url'
-cmdl_version = '2008.03.19'
+cmdl_version = '2008.04.05'
 cmdl_parser = optparse.OptionParser(usage=cmdl_usage, version=cmdl_version, conflict_handler='resolve')
 cmdl_parser.add_option('-h', '--help', action='help', help='print this help text and exit')
 cmdl_parser.add_option('-v', '--version', action='version', help='print program version and exit')
