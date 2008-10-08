@@ -102,10 +102,14 @@ def cond_print(str):
 
 # Title string normalization
 def title_string_norm(title):
-	title_p = u'‐ニコニコ動画(SP1)'
 	title_s = unicode(title.decode('utf-8', 'ignore'))
-	if (title_s.endswith(title_p)):
-		title_s = title_s[:title_s.rfind(title_p)]
+	for title_p in [u'‐ニコニコ動画(SP1)',
+			u'‐ニコニコ動画(夏)',
+			u'‐ニコニコ動画(秋)', # as of Oct 2008
+			]:
+		if (title_s.endswith(title_p)):
+			title_s = title_s[:title_s.rfind(title_p)]
+			break
 	title_s = title_s.replace(os.sep, u'%')
 	title_s = u'_'.join(title_s.split())
 	title_s = title_s.encode('utf-8','ignore')
@@ -204,7 +208,7 @@ def calc_speed(start, now, bytes):
 
 # Create the command line options parser and parse command line
 cmdl_usage = 'usage: %prog [options] video_url'
-cmdl_version = '2008.04.05'
+cmdl_version = '2008.10.08'
 cmdl_parser = optparse.OptionParser(usage=cmdl_usage, version=cmdl_version, conflict_handler='resolve')
 cmdl_parser.add_option('-h', '--help', action='help', help='print this help text and exit')
 cmdl_parser.add_option('-v', '--version', action='version', help='print program version and exit')
