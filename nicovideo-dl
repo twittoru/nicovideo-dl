@@ -106,6 +106,7 @@ def title_string_norm(title):
 	for title_p in [u'‐ニコニコ動画(SP1)',
 			u'‐ニコニコ動画(夏)',
 			u'‐ニコニコ動画(秋)', # as of Oct 2008
+			u'‐ニコニコ動画(冬)', # as of Dec 2008
 			]:
 		if (title_s.endswith(title_p)):
 			title_s = title_s[:title_s.rfind(title_p)]
