@@ -50,7 +50,7 @@ const_timeout = 120
 const_video_url_str = 'http://www.nicovideo.jp/watch/%s'
 const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/(\w+))')
 const_login_url_str = 'https://secure.nicovideo.jp/secure/login?site=niconico'
-const_login_post_str = 'current_form=login&next_url=%%2Fwatch%%2F%s&mail=%s&password=%s&login_submit=Log+In'
+const_login_post_str = 'current_form=login&mail=%s&password=%s&login_submit=Log+In'
 const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
 const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s'
 const_video_title_re = re.compile(r'<title>(.*)</title>', re.M | re.I)
@@ -230,19 +230,9 @@ cmdl_parser.add_option('-2', '--title-too', action='store_true', dest='get_title
 socket.setdefaulttimeout(const_timeout)
 
 # Get video URL
-if len(cmdl_args) != 1:
+if len(cmdl_args) == 0:
 	cmdl_parser.print_help()
 	sys.exit('\n')
-video_url_cmdl = cmdl_args[0]
-
-# Verify video URL format and convert to "standard" format
-video_url_mo = const_video_url_re.match(video_url_cmdl)
-if video_url_mo is None:
-	sys.exit('Error: URL does not seem to be a niconico video URL. If it is, report a bug.')
-video_url_id = video_url_mo.group(2)
-video_url = const_video_url_str % video_url_id
-
-video_extension = '.flv'
 
 # Check conflicting options
 if cmdl_opts.outfile is not None and (cmdl_opts.simulate or cmdl_opts.get_url):
@@ -311,119 +301,128 @@ urllib2.install_opener(urllib2.build_opener(urllib2.HTTPCookieProcessor()))
 # Log in
 if account_username is not None:
 	url = const_login_url_str
-	post = const_login_post_str % (video_url_id, account_username, account_password)
+	post = const_login_post_str % (account_username, account_password)
 	download_step(False, 'Logging in', 'unable to log in', url, post)
 
-# Retrieve video webpage
-video_webpage = download_step(True, 'Retrieving video webpage', 'unable to retrieve video webpage', video_url)
-
-# Extract video title if needed
-if cmdl_opts.use_title or cmdl_opts.use_literal or cmdl_opts.get_title:
-	video_title = extract_step('Extracting video title', 'unable to extract video title', const_video_title_re, video_webpage)
-
-# Extract needed video URL parameters
-video_url_info = const_video_url_info_str % video_url_id
-video_info_data = download_step(True, 'Retrieving info data', 'unable to retrieve video webpage', video_url_info)
-cond_print('Extracting URL "url" parameter... ')
-video_url_url_param = cgi.parse_qs(video_info_data)
-if (video_url_url_param.has_key("url")):
-	video_url_url_param=video_url_url_param["url"][0]
-else:
-	error_advice_exit('cannot extract url parameter')
-cond_print('done.\n')
-video_url_real = (video_url_url_param)
-
-# Extract video type and modify video_extension
-video_type_mo = const_video_type_re.match(video_url_real)
-if (video_type_mo):
-	if video_type_mo.group(1) == "s":
-		video_extension = ".swf"
-	elif video_type_mo.group(1) == "m":
-		video_extension = ".mp4"
-
-# Get output file name 
-if cmdl_opts.outfile is None:
-	video_filename = '%s%s' % (video_url_id, video_extension)
-else:
-	video_filename = cmdl_opts.outfile
-
-# Rebuild filename if needed
-if cmdl_opts.use_title or cmdl_opts.use_literal:
-	if cmdl_opts.use_title:
-		prefix = title_string_norm(video_title)
+for video_url_cmdl in cmdl_args:
+	# Verify video URL format and convert to "standard" format
+	video_url_mo = const_video_url_re.match(video_url_cmdl)
+	if video_url_mo is None:
+		sys.exit('Error: URL does not seem to be a niconico video URL. If it is, report a bug.')
+	video_url_id = video_url_mo.group(2)
+	video_url = const_video_url_str % video_url_id
+	
+	video_extension = '.flv'
+	
+	# Retrieve video webpage
+	video_webpage = download_step(True, 'Retrieving video webpage', 'unable to retrieve video webpage', video_url)
+	
+	# Extract video title if needed
+	if cmdl_opts.use_title or cmdl_opts.use_literal or cmdl_opts.get_title:
+		video_title = extract_step('Extracting video title', 'unable to extract video title', const_video_title_re, video_webpage)
+	
+	# Extract needed video URL parameters
+	video_url_info = const_video_url_info_str % video_url_id
+	video_info_data = download_step(True, 'Retrieving info data', 'unable to retrieve video webpage', video_url_info)
+	cond_print('Extracting URL "url" parameter... ')
+	video_url_url_param = cgi.parse_qs(video_info_data)
+	if (video_url_url_param.has_key("url")):
+		video_url_url_param=video_url_url_param["url"][0]
 	else:
-		prefix = title_string_touch(video_title)
-	video_filename = '%s-%s%s' % (prefix, video_url_id, video_extension)
-
-# Check name
-if not video_filename.lower().endswith(video_extension):
-	sys.stderr.write('Warning: video file name does not end in %s\n' % video_extension)
-
-# Retrieve video data
-try:
-	cond_print('Requesting video file... ')
-	video_data = perform_request(video_url_real)
+		error_advice_exit('cannot extract url parameter')
 	cond_print('done.\n')
-	cond_print('Video data found at %s\n' % video_data.geturl())
-
-	if cmdl_opts.get_title:
-		print video_title
-
-	if cmdl_opts.get_url:
-		print video_data.geturl()
-
-	if cmdl_opts.simulate or cmdl_opts.get_url:
-		sys.exit()
-
-	try:
-		video_file = open(video_filename, 'wb')
-	except (IOError, OSError):
-		sys.exit('Error: unable to open "%s" for writing.' % video_filename)
-	try:
-		video_len = long(video_data.info()['Content-length'])
-		video_len_str = format_bytes(video_len)
-	except KeyError:
-		video_len = None
-		video_len_str = 'N/A'
-
-	byte_counter = 0
-	block_size = const_initial_block_size
-	start_time = time.time()
-	while True:
-		if video_len is not None:
-			percent = float(byte_counter) / float(video_len) * 100.0
-			percent_str = '%.1f' % percent
-			eta_str = calc_eta(start_time, time.time(), video_len, byte_counter)
+	video_url_real = (video_url_url_param)
+	
+	# Extract video type and modify video_extension
+	video_type_mo = const_video_type_re.match(video_url_real)
+	if (video_type_mo):
+		if video_type_mo.group(1) == "s":
+			video_extension = ".swf"
+		elif video_type_mo.group(1) == "m":
+			video_extension = ".mp4"
+	
+	# Get output file name 
+	if cmdl_opts.outfile is None:
+		video_filename = '%s%s' % (video_url_id, video_extension)
+	else:
+		video_filename = cmdl_opts.outfile
+	
+	# Rebuild filename if needed
+	if cmdl_opts.use_title or cmdl_opts.use_literal:
+		if cmdl_opts.use_title:
+			prefix = title_string_norm(video_title)
 		else:
-			percent_str = '---.-'
-			eta_str = '--:--'
-		counter = format_bytes(byte_counter)
-		speed_str = calc_speed(start_time, time.time(), byte_counter)
-		cond_print('\rRetrieving video data: %5s%% (%8s of %s) at %8s/s ETA %s ' % (percent_str, counter, video_len_str, speed_str, eta_str))
-
-		before = time.time()
-		video_block = video_data.read(block_size)
-		after = time.time()
-		dl_bytes = len(video_block)
-		if dl_bytes == 0:
-			break
-		byte_counter += dl_bytes
-		video_file.write(video_block)
-		block_size = new_block_size(before, after, dl_bytes)
-
-	if video_len is not None and byte_counter != video_len:
-		error_advice_exit('server did not send the expected amount of data')
-
-	video_file.close()
-	cond_print('done.\n')
-	cond_print('Video data saved to %s\n' % video_filename)
-
-except (urllib2.URLError, ValueError, httplib.HTTPException, TypeError, socket.error):
-	cond_print('failed.\n')
-	error_advice_exit('unable to download video data')
-
-except KeyboardInterrupt:
-	sys.exit('\n')
-
+			prefix = title_string_touch(video_title)
+		video_filename = '%s-%s%s' % (prefix, video_url_id, video_extension)
+	
+	# Check name
+	if not video_filename.lower().endswith(video_extension):
+		sys.stderr.write('Warning: video file name does not end in %s\n' % video_extension)
+	
+	# Retrieve video data
+	try:
+		cond_print('Requesting video file... ')
+		video_data = perform_request(video_url_real)
+		cond_print('done.\n')
+		cond_print('Video data found at %s\n' % video_data.geturl())
+		
+		if cmdl_opts.get_title:
+			print video_title
+		
+		if cmdl_opts.get_url:
+			print video_data.geturl()
+		
+		if cmdl_opts.simulate or cmdl_opts.get_url:
+			continue
+		
+		try:
+			video_file = open(video_filename, 'wb')
+		except (IOError, OSError):
+			sys.exit('Error: unable to open "%s" for writing.' % video_filename)
+		try:
+			video_len = long(video_data.info()['Content-length'])
+			video_len_str = format_bytes(video_len)
+		except KeyError:
+			video_len = None
+			video_len_str = 'N/A'
+		
+		byte_counter = 0
+		block_size = const_initial_block_size
+		start_time = time.time()
+		while True:
+			if video_len is not None:
+				percent = float(byte_counter) / float(video_len) * 100.0
+				percent_str = '%.1f' % percent
+				eta_str = calc_eta(start_time, time.time(), video_len, byte_counter)
+			else:
+				percent_str = '---.-'
+				eta_str = '--:--'
+			counter = format_bytes(byte_counter)
+			speed_str = calc_speed(start_time, time.time(), byte_counter)
+			cond_print('\rRetrieving video data: %5s%% (%8s of %s) at %8s/s ETA %s ' % (percent_str, counter, video_len_str, speed_str, eta_str))
+	
+			before = time.time()
+			video_block = video_data.read(block_size)
+			after = time.time()
+			dl_bytes = len(video_block)
+			if dl_bytes == 0:
+				break
+			byte_counter += dl_bytes
+			video_file.write(video_block)
+			block_size = new_block_size(before, after, dl_bytes)
+		
+		if video_len is not None and byte_counter != video_len:
+			error_advice_exit('server did not send the expected amount of data')
+		
+		video_file.close()
+		cond_print('done.\n')
+		cond_print('Video data saved to %s\n' % video_filename)
+	
+	except (urllib2.URLError, ValueError, httplib.HTTPException, TypeError, socket.error):
+		cond_print('failed.\n')
+		error_advice_exit('unable to download video data')
+	
+	except KeyboardInterrupt:
+		sys.exit('\n')
 # Finish
 sys.exit()
