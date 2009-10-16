@@ -52,7 +52,7 @@ const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?nicovideo\.jp/(?:v/|(?
 const_login_url_str = 'https://secure.nicovideo.jp/secure/login?site=niconico'
 const_login_post_str = 'current_form=login&mail=%s&password=%s&login_submit=Log+In'
 const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
-const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s'
+const_video_url_info_str = 'http://www.nicovideo.jp/api/getflv?v=%s&as3=1'
 const_video_title_re = re.compile(r'<title>(.*)</title>', re.M | re.I)
 const_video_type_re = re.compile(r'^http://.*\.nicovideo\.jp/smile\?(.*?)=.*')
 
