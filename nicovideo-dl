@@ -50,7 +50,7 @@ const_epsilon = 0.0001
 const_timeout = 120
 
 const_video_url_str = 'http://www.nicovideo.jp/watch/%s'
-const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/(\w+))')
+const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?(?:nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/)?(\w+))')
 const_login_url_str = 'https://secure.nicovideo.jp/secure/login?site=niconico'
 const_login_post_str = 'current_form=login&mail=%s&password=%s&login_submit=Log+In'
 const_url_url_param_re = re.compile(r"url[=](http[^&]*)")
