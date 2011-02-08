@@ -129,10 +129,11 @@ def title_string_touch(title):
 def download_step(return_data_flag, step_title, step_error, url, post_data=None):
 	try:
 		cond_print('%s... ' % step_title)
-		data = perform_request(url, data=post_data).read()
+		response = perform_request(url, data=post_data)
+		data = response.read()
 		cond_print('done.\n')
 		if return_data_flag:
-			return data
+			return data, response
 		return None
 
 	except (urllib2.URLError, ValueError, httplib.HTTPException, TypeError, socket.error):
@@ -319,7 +320,12 @@ for video_url_cmdl in cmdl_args:
 	video_extension = '.flv'
 	
 	# Retrieve video webpage
-	video_webpage = download_step(True, 'Retrieving video webpage', 'unable to retrieve video webpage', video_url)
+	video_webpage, response = download_step(True, 'Retrieving video webpage', 'unable to retrieve video webpage', video_url)
+
+	# Reconvert URL if redirected
+	if response.geturl() != video_url:
+		video_url_id = const_video_url_re.match(response.geturl()).group(2)
+		video_url = const_video_url_str % video_url_id
 	
 	# Extract video title if needed
 	if cmdl_opts.use_title or cmdl_opts.use_literal or cmdl_opts.get_title:
@@ -327,7 +333,7 @@ for video_url_cmdl in cmdl_args:
 	
 	# Extract needed video URL parameters
 	video_url_info = const_video_url_info_str % video_url_id
-	video_info_data = download_step(True, 'Retrieving info data', 'unable to retrieve video webpage', video_url_info)
+	video_info_data, response = download_step(True, 'Retrieving info data', 'unable to retrieve video webpage', video_url_info)
 	cond_print('Extracting URL "url" parameter... ')
 	video_url_url_param = cgi.parse_qs(video_info_data)
 	if (video_url_url_param.has_key("url")):
