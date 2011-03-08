@@ -229,6 +229,7 @@ cmdl_parser.add_option('-l', '--literal', action='store_true', dest='use_literal
 cmdl_parser.add_option('-n', '--netrc', action='store_true', dest='use_netrc', help='use .netrc authentication data')
 cmdl_parser.add_option('-g', '--get-url', action='store_true', dest='get_url', help='print final video URL only')
 cmdl_parser.add_option('-2', '--title-too', action='store_true', dest='get_title', help='used with -g, print title too')
+cmdl_parser.add_option('-P', '--pit', action='store_true', dest='use_pit', help='use Pit for authentication')
 (cmdl_opts, cmdl_args) = cmdl_parser.parse_args()
 
 # Set socket timeout
@@ -265,6 +266,16 @@ if cmdl_opts.get_url is None and cmdl_opts.get_title is not None:
 # Get account information if any
 account_username = None
 account_password = None
+if cmdl_opts.use_pit:
+	try:
+                from pit import Pit
+                info = Pit.get('nicovideo', { 'require':{'username':'user','password':'pass'}})
+		if info is None:
+			sys.exit('Error: no authenticators for machine nicovideo.')
+		pit_username = info['username']
+		pit_password = info['password']
+        except:
+		sys.exit('Error: Pit not installed.')
 
 if cmdl_opts.use_netrc:
 	try:
@@ -295,6 +306,11 @@ else:
 			sys.exit('Error: empty username in .netrc file.')
 		account_username = netrc_username
 		account_password = netrc_password
+	elif cmdl_opts.use_pit:
+		if len(pit_username) == 0:
+			sys.exit('Error: empty username from Pit.')
+		account_username = pit_username
+		account_password = pit_password
 	elif account_username is None:
 		account_username = raw_input("Type Niconico E-mail account: ")
 		account_password = getpass.getpass('Type Niconico password and press return: ')
